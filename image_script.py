@@ -3,28 +3,46 @@ import os
 import datetime
 import shutil
 
+from pathlib import Path
+
 def rename_files_with_creation_date(copy_from_directory, base_copy_to_directory):
-	for filename in os.listdir(copy_from_directory):
-		source = os.path.join(copy_from_directory, filename)
+	copy_from_directory_path = Path("/volumes/RICOH GR/DCIM/100RICOH")
+	base_copy_to_directory_path = Path("/Users/zachlarabee/pictures")
+
+	for file in os.listdir(copy_from_directory):
+		# source = os.path.join(copy_from_directory, file)
+		source = copy_from_directory / file
 		# this check is needed in order to ignore directories
-		if os.path.isfile(source):
+
+		if source.is_file():
+			
+			# get file extension for use later
+			file_extension = source.suffix.lower()
+	
 			# next line is not readable as a date by humans
 			creation_time = os.path.getctime(source)
+
 			# make timestamp readable
 			date_created = datetime.datetime.fromtimestamp(creation_time)
 			date_folder = date_created.strftime('%Y_%m')
 
-			target_directory = os.path.join(base_copy_to_directory, date_folder)
-			os.makedirs(target_directory, exist_ok=True)
+			target_directory = base_copy_to_directory_path / date_folder
 
-			new_filename = f"{date_created.strftime('%Y_%m_%d')}_{filename}"
-			destination = os.path.join(target_directory, new_filename)
+			# subfolder for raw files
+			raw_file_sub_directory = target_directory / 'raw'
+			Path.mkdir(target_directory, exist_ok=True)
+			Path.mkdir(raw_file_sub_directory, exist_ok=True)
+			# os.makedirs(target_directory, exist_ok=True)
+			# os.makedirs(raw_file_sub_directory, exist_ok=True)
+
+			new_filename = f"{date_created.strftime('%Y_%m_%d')}_{file}"
+			destination = target_directory / new_filename
+			# destination = os.path.join(target_directory, new_filename)
 
 			shutil.copy2(source, destination)
-			print(f"Copied '{filename}' to '{destination}'")
+			print(f"Copied '{file}' to '{destination}'")
 
-copy_from_directory_path = "/volumes/RICOH GR/DCIM/100RICOH"
-base_copy_to_directory_path = "/Users/zachlarabee/pictures"
+
 
 rename_files_with_creation_date(copy_from_directory_path, base_copy_to_directory_path)
 
