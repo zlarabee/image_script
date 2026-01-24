@@ -5,10 +5,11 @@ import shutil
 
 from pathlib import Path
 
-def rename_files_with_creation_date(copy_from_directory, base_copy_to_directory):
-	copy_from_directory_path = Path("/volumes/RICOH GR/DCIM/100RICOH")
-	base_copy_to_directory_path = Path("/Users/zachlarabee/pictures")
+copy_from_directory_path = Path("/volumes/RICOH GR/DCIM/100RICOH")
+base_copy_to_directory_path = Path("/Users/zachlarabee/pictures")
 
+def rename_files_with_creation_date(copy_from_directory, base_copy_to_directory):
+	
 	for file in os.listdir(copy_from_directory):
 		# source = os.path.join(copy_from_directory, file)
 		source = copy_from_directory / file
