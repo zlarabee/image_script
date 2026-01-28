@@ -5,13 +5,17 @@ import shutil
 
 from pathlib import Path
 
-# copy_from_directory_path = Path("/volumes/RICOH GR/DCIM/100RICOH")
-copy_from_directory_path = Path("/Users/zachlarabee/pictures/test")
+copy_from_directory_path = Path("/volumes/RICOH GR/DCIM/100RICOH")
+# copy_from_directory_path = Path("/Users/zachlarabee/pictures/test")
 base_copy_to_directory_path = Path("/Users/zachlarabee/pictures")
 
 def rename_files_with_creation_date(copy_from_directory, base_copy_to_directory):
 	
+	# track which directories are being created so shorten run time. 
 	created_dirs = set()
+	
+	jpg_count = 0
+	raw_count = 0
 	
 	for image in copy_from_directory.iterdir():
 
@@ -30,12 +34,9 @@ def rename_files_with_creation_date(copy_from_directory, base_copy_to_directory)
 			jpg_directory = base_copy_to_directory_path / date_folder
 			raw_file_sub_directory = jpg_directory / 'raw'
 
-			# create dirs if they don't exist
+			# create root folder and raw subdir if they don't exist
 			if date_folder not in created_dirs:
-				# make dirs
 				Path.mkdir(jpg_directory, exist_ok=True)
-
-				# create raw subdir				
 				Path.mkdir(raw_file_sub_directory, exist_ok=True)
 
 				created_dirs.add(date_folder)
@@ -46,15 +47,18 @@ def rename_files_with_creation_date(copy_from_directory, base_copy_to_directory)
 			if file_extension == ".jpg" or file_extension == ".jpeg":
 
 				destination = jpg_directory / new_filename
-				# destination = os.path.join(jpg_directory, new_filename)
-
 				shutil.copy2(image, destination)
+				jpg_count += 1
+
 			else:
 				destination = raw_file_sub_directory / new_filename
-				# destination = os.path.join(jpg_directory, new_filename)
-
 				shutil.copy2(image, destination)
-			print(f"Copied '{image}' to '{destination}'")
+				raw_count += 1
+
+
+			# print(f"Copied '{image}' to '{destination}'")
+
+	print(f"Copied {jpg_count} JPEG files and {raw_count} Raw files.")
 
 
 
