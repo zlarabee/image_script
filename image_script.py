@@ -1,131 +1,177 @@
-# enter directory path
-import os
 import datetime
 import shutil
+import threading
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
 from pathlib import Path
 
+class ImageCopier:
 
-# function to perform copying
-def rename_files_with_creation_date(copy_from_directory, copy_to_directory):
-	
-	# track which directories are being created so shorten run time. 
-	created_dirs = set()
-	
-	jpg_count = 0
-	raw_count = 0
-	
-	for image in copy_from_directory.iterdir():
+	def __init__(self, source: Path, destination: Path, progress_cb=None):
+		self.source = source
+		self.destination = destination
+		self.progress_cb = progress_cb
+		
+	def run(self):
 
-		if image.is_file():
+		images = [image for image in self.source.iterdir() if image.is_file()]
+		total = len(images)
+		done = 0
+
+		created_dirs = set()
+		
+		for image in images:
+			self._process_file(image, created_dirs)
+			done += 1
+			if self.progress_cb:
+				self.progress_cb(done, total)
+
+	def _process_file(self, image: Path, created_dirs: set):
+		jpg_directory, raw_directory, date_created, date_folder = self._get_target_directories(image)
+		self._ensure_directories(date_folder, jpg_directory, raw_directory, created_dirs)
+		new_filename = self._build_filename(image, date_created)	
+		self._copy_image(image, jpg_directory, raw_directory, new_filename)
+	
+	def _get_target_directories(self, image: Path):
+		creation_time = image.stat().st_ctime
+		
+		date_created = datetime.datetime.fromtimestamp(creation_time)
+		date_folder = date_created.strftime('%Y_%m')
+	
+		jpg_directory = self.destination / date_folder
+		raw_directory = jpg_directory / 'raw'
+
+		return jpg_directory, raw_directory, date_created, date_folder
+
+	def _ensure_directories(self, date_folder: str, jpg_directory: Path, raw_directory: Path, created_dirs: set):
+		if date_folder not in created_dirs:
+			jpg_directory.mkdir(parents=True, exist_ok=True)
+			raw_directory.mkdir(parents=True, exist_ok=True)
 			
-			# get file extension for use later
-			file_extension = image.suffix.lower()
+			created_dirs.add(date_folder)
+
+	def _build_filename(self, image: Path, date_created: datetime.datetime):
+		new_filename = f"{date_created.strftime('%Y_%m_%d')}_{image.name}"
+
+		return new_filename
 	
-			# next line is not readable as a date by humans
-			creation_time = os.path.getctime(image)
+	def _copy_image(self, image, jpg_directory, raw_directory, new_filename):
+		if image.suffix.lower() == ".jpg" or image.suffix.lower() == ".jpeg":
+			target_path = jpg_directory / new_filename
+			shutil.copy2(image, target_path)
 
-			# make timestamp readable
-			date_created = datetime.datetime.fromtimestamp(creation_time)
-			date_folder = date_created.strftime('%Y_%m')
+		else:
+			target_path = raw_directory / new_filename
+			shutil.copy2(image, target_path)
 
-			jpg_directory = copy_to_directory / date_folder
-			raw_file_sub_directory = jpg_directory / 'raw'
+class ImageCopierUI:
+	
+	def __init__(self):
+		self.root = Tk()
+		self.root.title("Image Copier")	
 
-			# create root folder and raw subdir if they don't exist
-			if date_folder not in created_dirs:
-				Path.mkdir(jpg_directory, exist_ok=True)
-				Path.mkdir(raw_file_sub_directory, exist_ok=True)
+		self.copy_from = None
+		self.copy_to = None
 
-				created_dirs.add(date_folder)
-				# print(f"created directories {jpg_directory} and {raw_file_sub_directory}")
+		self.from_label = StringVar()
+		self.to_label = StringVar()
+		
+		self.progress_var = DoubleVar(value=0.0)
+		self.progress_fraction = 0.0
+		self._worker_running = False
 
-			new_filename = f"{date_created.strftime('%Y_%m_%d')}_{image.name}"
+		self._build_widgets()
 
-			if file_extension == ".jpg" or file_extension == ".jpeg":
+	def _build_widgets(self):
+		self.mainframe = ttk.Frame(self.root, padding=(3, 3, 12, 12))
+		self.mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
+				 
+		ttk.Button(self.mainframe, text="Choose Source Folder", command=self._choose_source).grid(column=0, row=1, sticky=W)
+		ttk.Label(self.mainframe, text="Source Directory: ").grid(column=1, row=1, sticky=W)
+		ttk.Label(self.mainframe, textvariable=self.from_label, wraplength=200, justify="left").grid(column=2, row=1, sticky=EW)
 
-				destination = jpg_directory / new_filename
-				shutil.copy2(image, destination)
-				jpg_count += 1
+		ttk.Button(self.mainframe, text="Choose Destination Folder", command=self._choose_destination).grid(column=0, row=2, sticky=EW)
+		ttk.Label(self.mainframe, text="Destination Directory: ").grid(column=1, row=2, sticky=W)
+		ttk.Label(self.mainframe, textvariable=self.to_label, wraplength=200, justify="left").grid(column=2, row=2, sticky=W)
 
-			else:
-				destination = raw_file_sub_directory / new_filename
-				shutil.copy2(image, destination)
-				raw_count += 1
+		ttk.Label(self.mainframe, text="Progress").grid(column=0, row=3, sticky=(W))
+		self.progress_bar = ttk.Progressbar(
+			self.mainframe,
+			orient='horizontal',
+			mode='determinate',
+			variable=self.progress_var, 
+			maximum=1.0
+		)
+		self.progress_bar.grid(column=0, columnspan=3, row=4, sticky=(W, E))
 
+		self.run_button = ttk.Button(self.mainframe, text="Run", command=self._run_copy, state="disabled")
+		self.run_button.grid(column=3, row=6, sticky=(S, E))
 
-			# print(f"Copied '{image}' to '{destination}'")
-
-	# print(f"Copied {jpg_count} JPEG files and {raw_count} Raw files.")
-
-# function to choose directories
-def pick_directory(title: str) -> Path | None:
-	path_str = filedialog.askdirectory(title=title)
-	return Path(path_str) if path_str else None
-
-# rename_files_with_creation_date(copy_from_directory_path, copy_to_directory_path)
-
-# INTERFACE!!!!!!!!!!!!!!!!
-
-root = Tk()
-root.title("Image Copier")
-
-copy_from = None
-copy_to = None
-
-mainframe = ttk.Frame(root, padding=(3, 3, 12, 12))
-mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
-
-from_label = StringVar()
-to_label = StringVar()
-
-def choose_source():
-	global copy_from
-	copy_from = pick_directory("Select Source Folder")
-	if copy_from:
-		from_label.set(str(copy_from))
-	update_run_button_state()
-
-def choose_destination():
-	global copy_to
-	copy_to = pick_directory("Select Destination Folder")
-	if copy_to:
-		to_label.set(str(copy_to))
-	update_run_button_state()
-
-def run_copy():
-	if not copy_from or not copy_to:
-		print("Please select both folders first")
-		return
-	rename_files_with_creation_date(copy_from, copy_to)
-
-def update_run_button_state():
-	if copy_from and copy_to:
-		run_button.state(["!disabled"])
-	else:
-		run_button.state(["disabled"])
-
-ttk.Button(mainframe, text="Choose Source Folder", command=choose_source).grid(column=0, row=1, sticky=W)
-ttk.Label(mainframe, text="Source Directory: ").grid(column=1, row=1, sticky=W)
-ttk.Label(mainframe, textvariable=from_label, wraplength=200, justify="left").grid(column=2, row=1, sticky=EW)
-
-ttk.Button(mainframe, text="Choose Destination Folder", command=choose_destination).grid(column=0, row=2, sticky=EW)
-ttk.Label(mainframe, text="Destination Directory: ").grid(column=1, row=2, sticky=W)
-ttk.Label(mainframe, textvariable=to_label, wraplength=200, justify="left").grid(column=2, row=2, sticky=W)
-
-run_button = ttk.Button(mainframe, text="Run", command=run_copy, state="disabled")
-run_button.grid(column=3, row=4, sticky=(S, E))
+		self.root.columnconfigure(0, weight=1)
+		self.root.rowconfigure(0, weight=1)
+		self.mainframe.columnconfigure(0, weight=0)
+		self.mainframe.columnconfigure(1, weight=0)
+		self.mainframe.columnconfigure(2, weight=1, minsize=200)
+		for child in self.mainframe.winfo_children():
+			child.grid_configure(padx=5, pady=5)
+		
+	def _choose_source(self):
+		self.copy_from = self.pick_directory("Select Source Folder")
+		if self.copy_from:
+			self.from_label.set(str(self.copy_from))
+		self._update_run_button_state()
 
 
+	def _choose_destination(self):
+		self.copy_to = self.pick_directory("Select Destination Folder")
+		if self.copy_to:
+			self.to_label.set(str(self.copy_to))
+		self._update_run_button_state()
 
-root.columnconfigure(0, weight=1)
-root.rowconfigure(0, weight=1)
-mainframe.columnconfigure(0, weight=0)
-mainframe.columnconfigure(1, weight=0)
-mainframe.columnconfigure(2, weight=1, minsize=200)
-for child in mainframe.winfo_children():
-    child.grid_configure(padx=5, pady=5)
+	def pick_directory(self, title: str) -> Path | None:
+		path_str = filedialog.askdirectory(title=title)
+		return Path(path_str) if path_str else None
+	
+	def _run_copy(self):
+		if not self.copy_from or not self.copy_to:
+			print("Please select both folders first")
+			return
+		copier = ImageCopier(self.copy_from, self.copy_to, progress_cb=self._on_progress)
 
-root.mainloop()
+		self._worker_running = True
+
+		threading.Thread(target=self._run_worker, args=(copier,), daemon=True).start()
+
+		self._poll_progress()
+
+	def _update_run_button_state(self):
+		if self.copy_from and self.copy_to:
+			self.run_button.state(["!disabled"])
+		else:
+			self.run_button.state(["disabled"])
+
+	def _on_progress(self, done, total):
+		if total == 0:
+			self.progress_fraction = 1.0
+		else:
+			self.progress_fraction = done / total	
+
+	def _poll_progress(self):
+		self.progress_var.set(self.progress_fraction)
+
+		if self._worker_running:
+			self.root.after(50, self._poll_progress)
+		else:
+			self.progress_var.set(1.0)
+	
+	def run(self):
+		self.root.mainloop()
+
+	def _run_worker(self, copier):
+		copier.run()
+		self._worker_running = False
+
+if __name__ == "__main__":
+    app = ImageCopierUI()
+    app.run()
