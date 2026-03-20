@@ -96,6 +96,7 @@ class ImageCopierUI:
 		ttk.Label(self.mainframe, textvariable=self.to_label, wraplength=200, justify="left").grid(column=2, row=2, sticky=W)
 
 		ttk.Label(self.mainframe, text="Progress").grid(column=0, row=3, sticky=(W))
+		
 		self.progress_bar = ttk.Progressbar(
 			self.mainframe,
 			orient='horizontal',
@@ -121,7 +122,6 @@ class ImageCopierUI:
 		if self.copy_from:
 			self.from_label.set(str(self.copy_from))
 		self._update_run_button_state()
-
 
 	def _choose_destination(self):
 		self.copy_to = self.pick_directory("Select Destination Folder")
