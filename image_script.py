@@ -1,4 +1,5 @@
 import datetime
+import exifread
 import shutil
 import threading
 from tkinter import *
@@ -15,7 +16,9 @@ class ImageCopier:
 		
 	def run(self):
 
-		images = [image for image in self.source.iterdir() if image.is_file()]
+		supported_extensions = {".jpg", "jpeg", ".cr2", ".nef", ".arw", ".dng", ".raf", ".rw2", ".orf"}
+
+		images = [image for image in self.source.iterdir() if image.is_file() and image.suffix.lower() in supported_extensions]
 		total = len(images)
 		done = 0
 
@@ -34,9 +37,14 @@ class ImageCopier:
 		self._copy_image(image, jpg_directory, raw_directory, new_filename)
 	
 	def _get_target_directories(self, image: Path):
-		creation_time = image.stat().st_ctime
-		
-		date_created = datetime.datetime.fromtimestamp(creation_time)
+
+		# pull date created from exif data
+		with open(image, 'rb') as file:
+			exif_data = exifread.process_file(file, stop_tag='DateTimeOriginal', details=False, extract_thumbnail=False)
+			time_stamp = exif_data.get("EXIF DateTimeOriginal")
+		# convert to datetime object
+		date_created = datetime.datetime.strptime(str(time_stamp), "%Y:%m:%d %H:%M:%S")
+		# convert datetime object back to string
 		date_folder = date_created.strftime('%Y_%m')
 	
 		jpg_directory = self.destination / date_folder
