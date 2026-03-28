@@ -3,8 +3,8 @@ import exifread
 import shutil
 import threading
 from tkinter import *
-from tkinter import ttk
-from tkinter import filedialog
+from tkinter import ttk, filedialog
+
 from pathlib import Path
 
 class ImageCopier:
@@ -38,13 +38,13 @@ class ImageCopier:
 	
 	def _get_target_directories(self, image: Path):
 
-		# pull date created from exif data
+		# fetch date created from exif data
 		with open(image, 'rb') as file:
 			exif_data = exifread.process_file(file, stop_tag='DateTimeOriginal', details=False, extract_thumbnail=False)
 			time_stamp = exif_data.get("EXIF DateTimeOriginal")
 		# convert to datetime object
 		date_created = datetime.datetime.strptime(str(time_stamp), "%Y:%m:%d %H:%M:%S")
-		# convert datetime object back to string
+		
 		date_folder = date_created.strftime('%Y_%m')
 	
 		jpg_directory = self.destination / date_folder
