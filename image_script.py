@@ -4,8 +4,47 @@ import shutil
 import threading
 from tkinter import *
 from tkinter import ttk, filedialog
-
 from pathlib import Path
+
+class CopyJob:
+	def __init__(self, source: Path, destination: Path):
+		self.image = source
+		self.date_created = self._get_date_created(self.image)
+		self.new_filename = self._generate_new_filename(self.image, self.date_created)
+		self.destination_directory = self._make_destination_directory(self.date_created, destination)
+
+	def _get_date_created(self, image):
+		with open(image, 'rb') as file:
+			exif_data = exifread.process_file(file, stop_tag='DateTimeOriginal', details=False, extract_thumbnail=False)
+			time_stamp = exif_data.get("EXIF DateTimeOriginal")
+			
+			try:
+				date_created = datetime.datetime.strptime(str(time_stamp), "%Y:%m:%d %H:%M:%S")
+			except ValueError:
+				time_stamp = image.stat().st_mtime
+				date_created = datetime.datetime.fromtimestamp(time_stamp)
+
+				print(f"{image} lacked exif data - copied with file timestamp")
+				
+		
+		return date_created
+
+	def _generate_new_filename(self, image, date_created):
+
+		new_filename = f"{date_created.strftime('%Y_%m_%d')}_{image.name}"
+		
+		return new_filename
+
+	def _make_destination_directory(self, date_created, destination):
+		
+		if self.image.suffix.lower() == ".jpg" or self.image.suffix.lower() == ".jpeg":
+			destination_directory = destination / date_created.strftime('%Y_%m')
+		else:
+			destination_directory = destination / date_created.strftime('%Y_%m') / 'raw'
+		
+		return destination_directory
+
+
 
 class ImageCopier:
 
@@ -16,62 +55,36 @@ class ImageCopier:
 		
 	def run(self):
 
-		supported_extensions = {".jpg", "jpeg", ".cr2", ".nef", ".arw", ".dng", ".raf", ".rw2", ".orf"}
+		supported_extensions = {".jpg", ".jpeg", ".cr2", ".nef", ".arw", ".dng", ".raf", ".rw2", ".orf"}
 
 		images = [image for image in self.source.iterdir() if image.is_file() and image.suffix.lower() in supported_extensions]
+		# total X 2 to account for ImageCopier and then copying
 		total = len(images)
 		done = 0
 
-		created_dirs = set()
+		created_directories = set()
 		
 		for image in images:
-			self._process_file(image, created_dirs)
+			copy_job = CopyJob(image, self.destination)
+			self._ensure_directories(copy_job.destination_directory, created_directories)
+			self._copy_image(copy_job.image, copy_job.destination_directory, copy_job.new_filename)
 			done += 1
 			if self.progress_cb:
 				self.progress_cb(done, total)
 
-	def _process_file(self, image: Path, created_dirs: set):
-		jpg_directory, raw_directory, date_created, date_folder = self._get_target_directories(image)
-		self._ensure_directories(date_folder, jpg_directory, raw_directory, created_dirs)
-		new_filename = self._build_filename(image, date_created)	
-		self._copy_image(image, jpg_directory, raw_directory, new_filename)
 	
-	def _get_target_directories(self, image: Path):
-
-		# fetch date created from exif data
-		with open(image, 'rb') as file:
-			exif_data = exifread.process_file(file, stop_tag='DateTimeOriginal', details=False, extract_thumbnail=False)
-			time_stamp = exif_data.get("EXIF DateTimeOriginal")
-		# convert to datetime object
-		date_created = datetime.datetime.strptime(str(time_stamp), "%Y:%m:%d %H:%M:%S")
-		
-		date_folder = date_created.strftime('%Y_%m')
-	
-		jpg_directory = self.destination / date_folder
-		raw_directory = jpg_directory / 'raw'
-
-		return jpg_directory, raw_directory, date_created, date_folder
-
-	def _ensure_directories(self, date_folder: str, jpg_directory: Path, raw_directory: Path, created_dirs: set):
-		if date_folder not in created_dirs:
-			jpg_directory.mkdir(parents=True, exist_ok=True)
-			raw_directory.mkdir(parents=True, exist_ok=True)
+	def _ensure_directories(self, directory, created_directories):
+		if directory not in created_directories:
+			directory.mkdir(parents=True, exist_ok=True)
 			
-			created_dirs.add(date_folder)
+			created_directories.add(directory)
 
-	def _build_filename(self, image: Path, date_created: datetime.datetime):
-		new_filename = f"{date_created.strftime('%Y_%m_%d')}_{image.name}"
-
-		return new_filename
 	
-	def _copy_image(self, image, jpg_directory, raw_directory, new_filename):
-		if image.suffix.lower() == ".jpg" or image.suffix.lower() == ".jpeg":
-			target_path = jpg_directory / new_filename
-			shutil.copy2(image, target_path)
+	def _copy_image(self, image, destination_directory, new_filename):
+		# if image.suffix.lower() == ".jpg" or image.suffix.lower() == ".jpeg":
+		target_path = destination_directory / new_filename
+		shutil.copy2(image, target_path)
 
-		else:
-			target_path = raw_directory / new_filename
-			shutil.copy2(image, target_path)
 
 class ImageCopierUI:
 	
