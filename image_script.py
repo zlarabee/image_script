@@ -6,6 +6,10 @@ from tkinter import *
 from tkinter import ttk, filedialog
 from pathlib import Path
 
+SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".cr2", ".nef", ".arw", ".dng", ".raf", ".rw2", ".orf"}
+JPG_EXTENSIONS = {".jpg", ".jpeg"}
+RAW_EXTENSIONS = {".cr2", ".nef", ".arw", ".dng", ".raf", ".rw2", ".orf"}
+
 class CopyJob:
 	def __init__(self, source: Path, destination: Path):
 		self.image = source
@@ -37,7 +41,7 @@ class CopyJob:
 
 	def _make_destination_directory(self, date_created, destination):
 		
-		if self.image.suffix.lower() == ".jpg" or self.image.suffix.lower() == ".jpeg":
+		if self.image.suffix.lower() in JPG_EXTENSIONS:
 			destination_directory = destination / date_created.strftime('%Y_%m')
 		else:
 			destination_directory = destination / date_created.strftime('%Y_%m') / 'raw'
@@ -55,9 +59,7 @@ class ImageCopier:
 		
 	def run(self):
 
-		supported_extensions = {".jpg", ".jpeg", ".cr2", ".nef", ".arw", ".dng", ".raf", ".rw2", ".orf"}
-
-		images = [image for image in self.source.iterdir() if image.is_file() and image.suffix.lower() in supported_extensions]
+		images = [image for image in self.source.iterdir() if image.is_file() and image.suffix.lower() in SUPPORTED_EXTENSIONS]
 		# total X 2 to account for ImageCopier and then copying
 		total = len(images)
 		done = 0
@@ -84,6 +86,30 @@ class ImageCopier:
 		# if image.suffix.lower() == ".jpg" or image.suffix.lower() == ".jpeg":
 		target_path = destination_directory / new_filename
 		shutil.copy2(image, target_path)
+
+class ImageDeleter:
+
+	def __init__(self, directory: Path, progress_cb=None):
+		self.directory = directory
+		self.raw_directory = directory / 'raw'
+		self.progress_cb = progress_cb
+
+	def run(self):
+		jpgs = {file.stem for file in self.directory.iterdir() if file.is_file() and file.suffix.lower() in JPG_EXTENSIONS}
+		
+		raw_files = [file for file in self.raw_directory.iterdir() if file.is_file() and file.suffix.lower() in RAW_EXTENSIONS]
+
+		total = len(raw_files) - len(jpgs)
+		done = 0
+
+		for file in raw_files:
+			if file.stem not in jpgs:
+				file.unlink(missing_ok=True)
+			done += 1
+			if self.progress_cb:
+				self.progress_cb(done, total)
+
+
 
 
 class ImageCopierUI:
