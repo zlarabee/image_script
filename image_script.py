@@ -83,9 +83,12 @@ class ImageCopier:
 
 	
 	def _copy_image(self, image, destination_directory, new_filename):
-		# if image.suffix.lower() == ".jpg" or image.suffix.lower() == ".jpeg":
 		target_path = destination_directory / new_filename
-		shutil.copy2(image, target_path)
+
+		if not target_path.exists():
+			shutil.copy2(image, target_path)
+		
+			
 
 class ImageDeleter:
 
@@ -110,13 +113,11 @@ class ImageDeleter:
 				self.progress_cb(done, total)
 
 
-
-
-class ImageCopierUI:
+class ImageManagerUI:
 	
 	def __init__(self):
 		self.root = Tk()
-		self.root.title("Image Copier")	
+		self.root.title("Image Manager")	
 
 		self.copy_from = None
 		self.copy_to = None
@@ -128,33 +129,21 @@ class ImageCopierUI:
 		self.progress_fraction = 0.0
 		self._worker_running = False
 
-		self._build_widgets()
+		self._build_notebook()
+		self._build_page_one()
+		self._build_page_two()
 
-	def _build_widgets(self):
+	def _build_notebook(self):
 		self.mainframe = ttk.Frame(self.root, padding=(3, 3, 12, 12))
 		self.mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
-				 
-		ttk.Button(self.mainframe, text="Choose Source Folder", command=self._choose_source).grid(column=0, row=1, sticky=W)
-		ttk.Label(self.mainframe, text="Source Directory: ").grid(column=1, row=1, sticky=W)
-		ttk.Label(self.mainframe, textvariable=self.from_label, wraplength=200, justify="left").grid(column=2, row=1, sticky=EW)
 
-		ttk.Button(self.mainframe, text="Choose Destination Folder", command=self._choose_destination).grid(column=0, row=2, sticky=EW)
-		ttk.Label(self.mainframe, text="Destination Directory: ").grid(column=1, row=2, sticky=W)
-		ttk.Label(self.mainframe, textvariable=self.to_label, wraplength=200, justify="left").grid(column=2, row=2, sticky=W)
+		self.n = ttk.Notebook(self.mainframe)
+		self.n.grid(row=0, column=1, sticky=(N, W, E, S))
+		self.p1 = ttk.Frame(self.n)
+		self.p2 = ttk.Frame(self.n)
+		self.n.add(self.p1, text="Copy")
+		self.n.add(self.p2, text="Delete")
 
-		ttk.Label(self.mainframe, text="Progress").grid(column=0, row=3, sticky=(W))
-		
-		self.progress_bar = ttk.Progressbar(
-			self.mainframe,
-			orient='horizontal',
-			mode='determinate',
-			variable=self.progress_var, 
-			maximum=1.0
-		)
-		self.progress_bar.grid(column=0, columnspan=3, row=4, sticky=(W, E))
-
-		self.run_button = ttk.Button(self.mainframe, text="Run", command=self._run_copy, state="disabled")
-		self.run_button.grid(column=3, row=6, sticky=(S, E))
 
 		self.root.columnconfigure(0, weight=1)
 		self.root.rowconfigure(0, weight=1)
@@ -163,15 +152,80 @@ class ImageCopierUI:
 		self.mainframe.columnconfigure(2, weight=1, minsize=200)
 		for child in self.mainframe.winfo_children():
 			child.grid_configure(padx=5, pady=5)
+	
+	def _build_page_one(self):
+		self.page_one = ttk.Frame(self.p1)
+		self.page_one.grid(column=0, row=0, sticky=(N, W, E, S))
+
+		ttk.Button(self.page_one, text="Choose Source Directory", command=self._choose_source).grid(column=0, row=1, sticky=W)
+		ttk.Label(self.page_one, text="Source Directory: ").grid(column=1, row=1, sticky=W)
+		ttk.Label(self.page_one, textvariable=self.from_label, wraplength=200, justify="left").grid(column=2, row=1, sticky=EW)
+
+		ttk.Button(self.page_one, text="Choose Destination Directory", command=self._choose_destination).grid(column=0, row=2, sticky=EW)
+		ttk.Label(self.page_one, text="Destination Directory: ").grid(column=1, row=2, sticky=W)
+		ttk.Label(self.page_one, textvariable=self.to_label, wraplength=200, justify="left").grid(column=2, row=2, sticky=W)
+
+		ttk.Label(self.page_one, text="Progress").grid(column=0, row=3, sticky=(W))
+		
+		self.progress_bar = ttk.Progressbar(
+			self.page_one,
+			orient='horizontal',
+			mode='determinate',
+			variable=self.progress_var, 
+			maximum=1.0
+		)
+		self.progress_bar.grid(column=0, columnspan=3, row=4, sticky=(W, E))
+
+		self.run_button_copy = ttk.Button(self.page_one, text="Run", command=self._run_copy, state="disabled")
+		self.run_button_copy.grid(column=3, row=6, sticky=(S, E))
+
+		self.root.columnconfigure(0, weight=1)
+		self.root.rowconfigure(0, weight=1)
+		self.page_one.columnconfigure(0, weight=0)
+		self.page_one.columnconfigure(1, weight=0)
+		self.page_one.columnconfigure(2, weight=1, minsize=200)
+		for child in self.page_one.winfo_children():
+			child.grid_configure(padx=5, pady=5)
+
+	def _build_page_two(self):
+		self.page_two = ttk.Frame(self.p2)
+		self.page_two.grid(column=0, row=0, sticky=(N, W, E, S))
+
+		ttk.Button(self.page_two, text="Choose Directory", command=self._choose_source).grid(column=0, row=1, sticky=W)
+		ttk.Label(self.page_two, text="Directory: ").grid(column=1, row=1, sticky=W)
+		ttk.Label(self.page_two, textvariable=self.from_label, wraplength=200, justify="left").grid(column=2, row=1, sticky=EW)
+
+		ttk.Label(self.page_two, text="Progress: ").grid(column=0, row=3, sticky=W)
+
+		self.progress_bar = ttk.Progressbar(
+			self.page_two,
+			orient='horizontal',
+			mode='determinate',
+			variable=self.progress_var,
+			maximum=1.0
+		)
+		self.progress_bar.grid(column=0, columnspan=3, row=4, sticky=(W, E))
+
+		self.run_button_delete = ttk.Button(self.page_two, text="Run", command=self._run_delete, state="disabled")
+		self.run_button_delete.grid(column=3, row=6, sticky=(S, E))
+
+		self.root.columnconfigure(0, weight=1)
+		self.root.rowconfigure(0, weight=1)
+		self.page_two.columnconfigure(0, weight=0)
+		self.page_two.columnconfigure(1, weight=0)
+		self.page_two.columnconfigure(2, weight=1, minsize=200)
+		for child in self.page_two.winfo_children():
+			child.grid_configure(padx=5, pady=5)
+	
 		
 	def _choose_source(self):
-		self.copy_from = self.pick_directory("Select Source Folder")
+		self.copy_from = self.pick_directory("Select Source Directory")
 		if self.copy_from:
 			self.from_label.set(str(self.copy_from))
 		self._update_run_button_state()
 
 	def _choose_destination(self):
-		self.copy_to = self.pick_directory("Select Destination Folder")
+		self.copy_to = self.pick_directory("Select Destination Directory")
 		if self.copy_to:
 			self.to_label.set(str(self.copy_to))
 		self._update_run_button_state()
@@ -188,15 +242,32 @@ class ImageCopierUI:
 
 		self._worker_running = True
 
-		threading.Thread(target=self._run_worker, args=(copier,), daemon=True).start()
+		threading.Thread(target=self._run_copier, args=(copier,), daemon=True).start()
 
 		self._poll_progress()
 
+	def _run_delete(self):
+		if not self.copy_from:
+			print("Please select a directory to clean up")
+			return
+		deleter = ImageDeleter(self.copy_from, progress_cb=self._on_progress)
+
+		self._worker_running = True
+
+		threading.Thread(target=self._run_deleter, args=(deleter,), daemon=True).start()
+
+		self._poll_progress()
+		
 	def _update_run_button_state(self):
-		if self.copy_from and self.copy_to:
-			self.run_button.state(["!disabled"])
+		current_tab = self.n.index(self.n.select())
+		
+		if current_tab == 0 and self.copy_from and self.copy_to:
+			self.run_button_copy.state(["!disabled"])
+		elif current_tab == 1 and self.copy_from:
+			self.run_button_delete.state(["!disabled"])
 		else:
-			self.run_button.state(["disabled"])
+			self.run_button_copy.state(["disabled"])
+			self.run_button_delete.state(["disabled"])
 
 	def _on_progress(self, done, total):
 		if total == 0:
@@ -215,10 +286,14 @@ class ImageCopierUI:
 	def run(self):
 		self.root.mainloop()
 
-	def _run_worker(self, copier):
+	def _run_copier(self, copier):
 		copier.run()
 		self._worker_running = False
 
+	def _run_deleter(self, deleter):
+		deleter.run()
+		self._worker_running = False
+
 if __name__ == "__main__":
-    app = ImageCopierUI()
+    app = ImageManagerUI()
     app.run()
